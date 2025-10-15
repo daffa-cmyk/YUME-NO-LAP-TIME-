@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YUME NO LAP TIME</title>
+<style>
+/* ===== STYLE ===== */
+body {font-family: Arial, sans-serif; margin:0; padding:0; background: linear-gradient(135deg, #ff0000, #000000); color:white;}
+.container {padding:20px; max-width:900px; margin:auto;}
+header {display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;}
+header h1 {font-size:24px;}
+button {padding:8px 15px; margin:5px; background: yellow; border:none; border-radius:5px; cursor:pointer; font-weight:bold;}
+button:hover{background:orange;}
+input, select {padding:8px; margin:5px; border-radius:5px; border:none; width:90%;}
+section {margin-bottom:20px; padding:15px; background: rgba(0,0,0,0.6); border-radius:10px;}
+#chat-box {height:200px; overflow-y:scroll; border:1px solid white; padding:10px;}
+table {width:100%; border-collapse:collapse; margin-top:10px;}
+table, th, td {border:1px solid white;}
+th, td {padding:5px; text-align:center;}
+</style>
+</head>
+<body>
+
+<div class="container" id="login-page">
+  <h1>YUME NO LAP TIME - Login Reading 9C</h1>
+  <input type="text" id="username" placeholder="Username">
+  <input type="password" id="password" placeholder="Password">
+  <select id="role">
+    <option value="anggota">Anggota</option>
+    <option value="admin">Admin</option>
+  </select>
+  <button onclick="login()">Login</button>
+  <p id="login-msg"></p>
+</div>
+
+<div class="container" id="dashboard-page" style="display:none;">
+  <header>
+    <h1>Dashboard - Reading 9C</h1>
+    <button onclick="logout()">Logout</button>
+  </header>
+
+  <section class="profile">
+    <h2>Profil Kamu</h2>
+    <img src="https://via.placeholder.com/100" alt="Avatar" id="avatar" width="100">
+    <input type="file" onchange="changeAvatar(event)">
+    <p>Username: <span id="profile-name"></span></p>
+    <input type="password" placeholder="Ganti Password" id="new-password">
+    <button onclick="updateProfile()">Update Profil</button>
+  </section>
+
+  <section class="activities">
+    <h2>Aktivitas Literasi</h2>
+    <button onclick="lapMembaca()">Lap Membaca</button>
+    <button onclick="pitStop()">Pit Stop Inspirasi</button>
+    <button onclick="readingRaceWeek()">Reading Race Week</button>
+    <button onclick="finishLine()">Finish Line of Dreams</button>
+  </section>
+
+  <section class="chat">
+    <h2>Reading 9C Chat</h2>
+    <div id="chat-box"></div>
+    <input type="text" id="chat-msg" placeholder="Ketik pesan...">
+    <button onclick="sendMessage()">Kirim</button>
+  </section>
+</div>
+
+<div class="container" id="admin-page" style="display:none;">
+  <header>
+    <h1>Admin Panel - Reading 9C</h1>
+    <button onclick="logout()">Logout</button>
+  </header>
+
+  <section>
+    <h2>Kelola Buku</h2>
+    <input type="text" id="new-book" placeholder="Judul buku baru">
+    <button onclick="addBook()">Tambah Buku</button>
+    <table id="books-table">
+      <tr><th>No</th><th>Judul Buku</th><th>Aksi</th></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Kelola Anggota</h2>
+    <input type="text" id="new-member" placeholder="Username anggota">
+    <input type="password" id="new-member-pw" placeholder="Password anggota">
+    <button onclick="addMember()">Tambah Anggota</button>
+    <table id="members-table">
+      <tr><th>No</th><th>Username</th><th>Password</th><th>Aksi</th></tr>
+    </table>
+  </section>
+</div>
+
+<script>
+// ===== DATA DEFAULT =====
+if(!localStorage.getItem('users')){
+  const users = [
+    {username:'admin', password:'admin123', role:'admin'},
+    {username:'user1', password:'user1', role:'anggota'}
+  ];
+  localStorage.setItem('users', JSON.stringify(users));
+}
+if(!localStorage.getItem('books')) localStorage.setItem('books', JSON.stringify([]));
+if(!localStorage.getItem('chat')) localStorage.setItem('chat', JSON.stringify([]));
+if(!localStorage.getItem('members')) localStorage.setItem('members', JSON.stringify([]));
+
+// ===== LOGIN =====
+function login(){
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+  const role = document.getElementById('role').value;
+  const users = JSON.parse(localStorage.getItem('users'));
+  const user = users.find(u => u.username === username && u.password === password && u.role === role);
+  if(user){
+    sessionStorage.setItem('currentUser', JSON.stringify(user));
+    document.getElementById('login-page').style.display='none';
+    if(role==='admin') showAdminPage();
+    else showDashboard();
+  } else {
+    document.getElementById('login-msg').innerText="Username atau Password salah!";
+  }
+}
+
+// ===== LOGOUT =====
+function logout(){
+  sessionStorage.removeItem('currentUser');
+  document.getElementById('login-page').style.display='block';
+  document.getElementById('dashboard-page').style.display='none';
+  document.getElementById('admin-page').style.display='none';
+}
+
+// ===== DASHBOARD =====
+function showDashboard(){
+  document.getElementById('dashboard-page').style.display='block';
+  const user = JSON.parse(sessionStorage.getItem('currentUser'));
+  document.getElementById('profile-name').innerText = user.username;
+
+  // Load chat
+  const chatData = JSON.parse(localStorage.getItem('chat'));
+  const chatBox = document.getElementById('chat-box');
+  chatBox.innerHTML = '';
+  chatData.forEach(c => {
+    const p = document.createElement('p');
+    p.textContent = c.user + ": " + c.msg;
+    chatBox.appendChild(p);
+  });
+}
+
+// ===== ADMIN PAGE =====
+function showAdminPage(){
+  document.getElementById('admin-page').style.display='block';
+  renderBooks();
+  renderMembers();
+}
+
+// ===== PROFIL =====
+function changeAvatar(event){
+  const avatar = document.getElementById('avatar');
+  avatar.src = URL.createObjectURL(event.target.files[0]);
+}
+function updateProfile(){
+  const pw = document.getElementById('new-password').value;
+  const user = JSON.parse(sessionStorage.getItem('currentUser'));
+  let users = JSON.parse(localStorage.getItem('users'));
+  users = users.map(u=>{
+    if(u.username===user.username && u.role===user.role) u.password = pw || u.password;
+    return u;
+  });
+  localStorage.setItem('users', JSON.stringify(users));
+  alert("Profil berhasil diupdate!");
+}
+
+// ===== ACTIVITAS =====
+function lapMembaca(){
+  const books = JSON.parse(localStorage.getItem('books'));
+  if(books.length===0){ alert("Belum ada buku tersedia."); return; }
+  let bookList = "Pilih buku yang selesai dibaca:\n";
+  books.forEach((b,i)=>bookList+=(i+1)+". "+b+"\n");
+  const idx = prompt(bookList+"Masukkan nomor buku:");
+  if(idx && books[idx-1]) alert("Buku '"+books[idx-1]+"' berhasil ditambahkan di Lintasan Mimpi!");
+}
+function pitStop(){
+  const kutipan = prompt("Masukkan kutipan atau pelajaran dari buku:");
+  if(kutipan) alert("Kutipan berhasil ditempel di Pit Stop Inspirasi!");
+}
+function readingRaceWeek(){ alert("Minggu Literasi Dimulai! Catat jumlah buku setiap hari."); }
+function finishLine(){
+  const cita = prompt("Tulis cita-cita dan buku paling inspiratif bulan ini:");
+  if(cita) alert("Finish Line of Dreams: '"+cita+"' berhasil ditambahkan!");
+}
+
+// ===== CHAT =====
+function sendMessage(){
+  const msgInput = document.getElementById('chat-msg');
+  if(msgInput.value.trim()!==""){
+    const user = JSON.parse(sessionStorage.getItem('currentUser'));
+    const chatData = JSON.parse(localStorage.getItem('chat'));
+    chatData.push({user:user.username,msg:msgInput.value});
+    localStorage.setItem('chat', JSON.stringify(chatData));
+    const chatBox = document.getElementById('chat-box');
+    const p = document.createElement('p');
+    p.textContent = user.username+": "+msgInput.value;
+    chatBox.appendChild(p);
+    msgInput.value = "";
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+}
+
+// ===== ADMIN FUNGSI =====
+function addBook(){
+  const title = document.getElementById('new-book').value.trim();
+  if(title===""){ alert("Masukkan judul buku!"); return; }
+  const books = JSON.parse(localStorage.getItem('books'));
+  books.push(title);
+  localStorage.setItem('books', JSON.stringify(books));
+  document.getElementById('new-book').value="";
+  renderBooks();
+}
+function renderBooks(){
+  const books = JSON.parse(localStorage.getItem('books'));
+  const table = document.getElementById('books-table');
+  table.innerHTML = "<tr><th>No</th><th>Judul Buku</th><th>Aksi</th></tr>";
+  books.forEach((b,i)=>{
+    const row = table.insertRow();
+    row.insertCell(0).innerText=i+1;
+    row.insertCell(1).innerText=b;
+    const del = document.createElement('button');
+    del.innerText='Hapus';
+    del.onclick=()=>{ books.splice(i,1); localStorage.setItem('books', JSON.stringify(books)); renderBooks(); };
+    row.insertCell(2).appendChild(del);
+  });
+}
+
+function addMember(){
+  const username = document.getElementById('new-member').value.trim();
+  const password = document.getElementById('new-member-pw').value.trim();
+  if(username===""||password===""){ alert("Masukkan username dan password anggota!"); return; }
+  const members = JSON.parse(localStorage.getItem('members'));
+  members.push({username,password});
+  localStorage.setItem('members', JSON.stringify(members));
+  document.getElementById('new-member').value="";
+  document.getElementById('new-member-pw').value="";
+  renderMembers();
+}
+function renderMembers(){
+  const members = JSON.parse(localStorage.getItem('members'));
+  const table = document.getElementById('members-table');
+  table.innerHTML = "<tr><th>No</th><th>Username</th><th>Password</th><th>Aksi</th></tr>";
+  members.forEach((m,i)=>{
+    const row = table.insertRow();
+    row.insertCell(0).innerText=i+1;
+    row.insertCell(1).innerText=m.username;
+    row.insertCell(2).innerText=m.password;
+    const del = document.createElement('button');
+    del.innerText='Hapus';
+    del.onclick=()=>{ members.splice(i,1); localStorage.setItem('members', JSON.stringify(members)); renderMembers(); };
+    row.insertCell(3).appendChild(del);
+  });
+}
+</script>
+</body>
+</html>
